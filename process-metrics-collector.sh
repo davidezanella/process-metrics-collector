@@ -1,7 +1,9 @@
 #!/bin/bash
 
+"$@" &
+
 # process id to monitor
-pid=$1
+pid=$!
 
 if [ -z $1 ]; then
   echo "ERROR: Process ID not specified."
@@ -29,7 +31,7 @@ mkdir -p $dir_name
 
 
 
-# Read collected metrices from the CSV file and plot graphs
+# Read collected metrics from the CSV file and plot graphs
 #
 # This function will end script execution.
 #
@@ -83,23 +85,23 @@ function plotGraph() {
       #
       # CPU and memory usage
       set output "${dir_name}/cpu-mem-usage.png"
-      set title "CPU and Memory Usage for Proces ID $pid"
+      set title "CPU and Memory Usage for Process ID $pid"
       plot "$csv_filename" using 2:xticlabels(1) with lines smooth unique lw 2 lt rgb "#4848d6" t "CPU Usage %",\
        "$csv_filename" using 3:xticlabels(1) with lines smooth unique lw 2 lt rgb "#b40000" t "Memory Usage %"
 
       # TCP count
       set output "${dir_name}/tcp-count.png"
-      set title "TCP Connections Count for Proces ID $pid"
+      set title "TCP Connections Count for Process ID $pid"
       plot "$csv_filename" using 4:xticlabels(1) with lines smooth unique lw 2 lt rgb "#ed8004" t "TCP Connection Count"
 
       # Thread count
       set output "${dir_name}/thread-count.png"
-      set title "Thread Count for Proces ID $pid"
+      set title "Thread Count for Process ID $pid"
       plot "$csv_filename" using 5:xticlabels(1) with lines smooth unique lw 2 lt rgb "#48d65b" t "Thread Count"
 
        # All together
-       set output "${dir_name}/all-metrices.png"
-       set title "All Metrics for Proces ID $pid"
+       set output "${dir_name}/all-metrics.png"
+       set title "All Metrics for Process ID $pid"
        plot "$csv_filename" using 2:xticlabels(1) with lines smooth unique lw 2 lt rgb "#4848d6" t "CPU Usage %",\
         "$csv_filename" using 3:xticlabels(1) with lines smooth unique lw 2 lt rgb "#b40000" t "Memory Usage %", \
         "$csv_filename" using 4:xticlabels(1) with lines smooth unique lw 2 lt rgb "#ed8004" t "TCP Connection Count", \
@@ -133,14 +135,30 @@ while [ $pid_exist == 0 ]; do
   pid_exist=$?
 
   if [ $pid_exist == 0 ]; then
-    # read cpu and mem percentages
+    sub_pids=($(pgrep -P $pid))
+    sub_pids+=($pid)
+
     timestamp=$(date +"%b %d %H:%M:%S")
-    cpu_mem_usage=$(top -b -n 1 | grep -w -E "^ *$pid" | awk '{print $9 "," $10}')
-    tcp_cons=$(lsof -i -a -p $pid -w | tail -n +2 | wc -l)
-    tcount=$(ps -o nlwp h $pid | tr -d ' ')
+    cpu_usage=0
+    mem_usage=0
+    tcp_cons=0
+    tcount=0
+
+    for i in "${sub_pids[@]}"
+    do
+      # read cpu and mem percentages
+      tmp=$(top -b -n 1 | grep -w -E "^ *$i" | awk '{print $9}')
+      cpu_usage=$(awk '{print $1+$2}' <<<"${cpu_usage} ${tmp}")
+      tmp=$(top -b -n 1 | grep -w -E "^ *$i" | awk '{print $10}')
+      mem_usage=$(awk '{print $1+$2}' <<<"${mem_usage} ${tmp}")
+      tmp=$(lsof -i -a -p $i -w | tail -n +2 | wc -l)
+      tcp_cons=$(awk '{print $1+$2}' <<<"${tcp_cons} ${tmp}")
+      tmp=$(ps -o nlwp h $i | tr -d ' ')
+      tcount=$(awk '{print $1+$2}' <<<"${tcount} ${tmp}")
+    done
 
     # write CSV row
-    echo "$timestamp,$cpu_mem_usage,$tcp_cons,$tcount" >> $csv_filename
+    echo "$timestamp,$cpu_usage,$mem_usage,$tcp_cons,$tcount" >> $csv_filename
     sleep 5
   fi
 done
