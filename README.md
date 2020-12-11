@@ -1,5 +1,12 @@
 # process-metrics-collector
-A Bash Script to monitor, collect, and visualize metrics of a given Linux process
+A Bash Script to monitor, collect, and visualize metrics of a given Linux command. All the subprocesses are taken into account for the metrics computation.
+
+#### How to use it
+You can pass whatever command or program and the related parameters as arguments like below:
+```shell
+sh process-metrics-collector.sh python3 my_script.py --par1 example
+sh process-metrics-collector.sh firefox
+```
 
 ## Values Collected
 1. CPU Usage - Collected by the `top` command
